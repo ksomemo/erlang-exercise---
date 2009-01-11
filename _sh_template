@@ -1,0 +1,3 @@
+#!/bin/sh
+erl +P 500000 -noshell -boot start_clean -s {module} {main} {constructor} $@
+
