@@ -1,7 +1,7 @@
 -module(lib_ring).
 -export([entryloop/1, loop/2, start/3]).
 
--record(payload, {client, message, counter}).
+-record(payload, {client, message, counter, first}).
 
 -ifdef(debug).
 -define(TRACE(TEMPLATE, ARGS), io:format(TEMPLATE, ARGS)).
@@ -16,26 +16,24 @@ rpc(Pid, Request) ->
 	    Response
     end.
 
-entryloop(Next) ->
-    receive
-	{_, #payload{counter=0, message=Msg}=P} ->
-	    ?TRACE("finishi rotations of ~p~n", [Msg]),
-	    P#payload.client ! {self(), Msg},
-	    entryloop(Next);
+entryloop(Next)  -> loop(Next).
+loop(_Prev, Next) -> loop(Next).
 
-	{_, #payload{counter=C}=P} ->
-	    ?TRACE("last ~p rotations of ~p~n", [C, P#payload.message]),
-	    Next ! {self(), P#payload{counter=C-1}},
-	    entryloop(Next)
-    end.
-
-loop(Prev, Next) ->
+loop(Next) ->
+    Self = self(),
     receive
-	{Prev, Payload} when is_record(Payload, payload) ->
-	    ?TRACE("pass ~p to the next node ~p~n", [Payload#payload.message, Next]),
-	    Next ! {self(), Payload},
-	    loop(Prev, Next)
-    end.
+	{_From, #payload{first=Self, counter=C, message=Msg}=P} ->
+	    if
+		C > 0 -> ?TRACE("last ~p rotations of ~p~n", [C, Msg]),
+			 Next ! {Self, P#payload{counter=C-1}};
+		true  -> ?TRACE("finishi rotations of ~p~n", [Msg]),
+			 P#payload.client ! {Self, Msg}
+	    end;
+	{_From, P} when is_record(P, payload) ->
+	    ?TRACE("pass ~p to the next node ~p~n", [P#payload.message, Next]),
+	    Next ! {Self, P}
+    end,
+    loop(Next).
 
 start(Pid, M, Msg) when M >= 0 ->
-    rpc(Pid, #payload{client=self(), counter=M, message=Msg}).
+    rpc(Pid, #payload{client=self(), counter=M, message=Msg, first=Pid}).
