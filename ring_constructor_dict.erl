@@ -6,9 +6,9 @@ construct(N) when N > 0 ->
 	     lists:map(fun(I) -> {I-1, spawn(?MODULE, prepare, [self(), I])} end, 
 		       lists:seq(1, N))),
     lists:foreach(fun(I) ->
-			  Pid  = Pids:fetch(I),
-			  Prev = Pids:fetch((I-1+N) rem N),
-			  Next = Pids:fetch((I+1) rem N),
+			  Pid  = dict:fetch(I, Pids),
+			  Prev = dict:fetch((I-1+N) rem N, Pids),
+			  Next = dict:fetch((I+1) rem N, Pids),
 			  Pid ! {self(), {Prev, Next}}
 			  end,
 		 lists:seq(0, N-1)),
